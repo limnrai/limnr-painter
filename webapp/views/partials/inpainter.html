@@ -1,0 +1,202 @@
+{{ define "inpainter" }}
+
+<script src="/public/js/lib/jcanvas.min.js"></script>
+
+<div className="canvas-group" style="display: flex; height: 40px; justify-content: center; align-items: center;">
+    <div id="controls" style="margin: 3px; display: flex; height: 40px; justify-content: center; align-items: center; white-space: nowrap;">
+        <button id="undoBtn" class="button small icon" style="margin: 3px;" title="Undo">↩</button>
+        <button id="redoBtn" class="button small icon" style="margin: 3px;" title="Redo">↪</button>
+        <button id="clearBtn" class="button small icon" style="margin: 3px;" title="Clear">🧹</button>
+    </div>
+
+    <div style="margin: 3px;">
+        <label for="brushSize">Brush Size:</label>
+        <input style="width: 60px;" type="range" id="brushSize" min="1" max="40" value="20">
+    </div>
+    <div className="ai-input-outline-nomargin" style="margin: 3px; display: flex; height: 40px; width: 45px; justify-content: center; align-items: center; white-space: nowrap;">
+        <div id="canvasIcon" title="Stroke width" style="height: 5px;"></div>
+    </div>
+    <div style="margin: 3px;">
+        <label for="colorPicker">Color:</label>
+        <input type="color" id="colorPicker" value="#c837ab">
+    </div>
+</div>
+
+<div class="align-center" style="padding: 10px; height: calc(100% - 200px);">
+    <div id="canvasContainer">
+        <canvas id="paintCanvas"></canvas>
+    </div>
+</div>
+
+<div class="align-center">
+    <button id="genInpainting" name="genInpainting" class="button" type="button" style="width: 100px;">Download</button>
+</div>
+
+<script>
+    const inpaintPredictionBody = {
+      prompt: '',
+      init_image: null,
+      mask: null,
+    };
+
+
+    $(document).ready(function() {
+        var history = [];
+        var historyIndex = -1;
+    
+        var canvasContainer = $('#canvasContainer');
+        var canvasElement = $('#paintCanvas');
+        var canvas = canvasElement.get(0);
+        var context = canvas.getContext('2d');
+        var brushSize = 20;
+        $('#brushSize').val(brushSize);
+        var brushColor = '#c837ab';
+        var drawing = false;
+
+        recordState();
+
+        var isPainting = false;
+        var isDragging = false;
+        var lastX, lastY;
+
+        canvas.addEventListener('mousedown', function(e) {
+            isPainting = true;
+            lastX = e.pageX - $(this).offset().left;
+            lastY = e.pageY - $(this).offset().top;
+        });
+        
+        canvas.addEventListener('mousemove', function(e) {
+            if(isPainting){
+                isDragging = true;
+                var currentX = e.pageX - $(this).offset().left;
+                var currentY = e.pageY - $(this).offset().top;
+
+                $(this).drawLine({
+                    strokeStyle: brushColor,
+                    strokeWidth: brushSize,
+                    rounded: true,
+                    x1: lastX,
+                    y1: lastY,
+                    x2: currentX,
+                    y2: currentY
+                });
+                lastX = currentX;
+                lastY = currentY;
+            }
+        });
+
+        canvas.addEventListener('mousedown', function(e) {
+            if(isPainting){
+                isDragging = true;
+                var currentX = e.pageX - $(this).offset().left;
+                var currentY = e.pageY - $(this).offset().top;
+
+                $(this).drawLine({
+                    strokeStyle: brushColor,
+                    strokeWidth: brushSize,
+                    rounded: true,
+                    x1: lastX,
+                    y1: lastY,
+                    x2: currentX,
+                    y2: currentY
+                });
+                lastX = currentX;
+                lastY = currentY;
+            }
+        });
+
+        canvas.addEventListener('mouseup', function(e) {
+            isPainting = false;
+            if(!isDragging){
+                var x = e.pageX - $(this).offset().left;
+                var y = e.pageY - $(this).offset().top;
+                $(this).drawEllipse({
+                    fillStyle: brushColor,
+                    x: x,
+                    y: y,
+                    width: brushSize,
+                    height: brushSize,
+                    fromCenter: true
+                });
+            }
+            isDragging = false;
+
+            recordState();
+        });
+
+        $('#brushSize').on('change', function() {
+            brushSize = parseInt($(this).val());
+        });
+
+        $('#colorPicker').on('change', function() {
+            brushColor = $(this).val();
+        });
+
+        $('#undoBtn').click(function(){
+            if (historyIndex > 0) {
+                historyIndex--;
+
+                canvasElement.clearCanvas();
+                canvasElement.drawImage({
+                    source: history[historyIndex],
+                    x: 0,
+                    y: 0,
+                    fromCenter: !1
+                });
+            }
+        });
+
+        $('#redoBtn').click(function(){
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+
+                canvasElement.clearCanvas();
+                canvasElement.drawImage({
+                    source: history[historyIndex],
+                    x: 0,
+                    y: 0,
+                    fromCenter: !1
+                });
+            }
+        });
+
+        $('#clearBtn').click(function(){
+            canvasElement.clearCanvas();
+            history = [];
+            historyIndex = -1;
+            recordState();
+        });
+
+        function recordState() {
+            var currentState = canvas.toDataURL("image/png");
+            history.splice(historyIndex + 1);
+            history.push(currentState);
+            historyIndex = history.length - 1;
+        }
+
+        function resizeCanvas() {
+            canvas.width = canvasContainer.width();
+            canvas.height = canvasContainer.height();
+        }
+
+        $(window).on('resize', resizeCanvas);
+        resizeCanvas();
+
+        function downloadImage() {
+            const $link = $('<a target="_blank"></a>');
+            $link.attr('href', canvas.toDataURL("image/png"));
+            $link.attr('download', 'limnr-painter-image.png');
+            $('body').append($link);
+            $link[0].click();
+            $link.remove();
+        }
+
+        $('#genInpainting').click(function(){
+            downloadImage(canvas);
+        });
+
+    });
+
+</script>
+
+{{ end }}
